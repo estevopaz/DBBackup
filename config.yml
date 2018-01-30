@@ -5,6 +5,12 @@
 # Backup folder
 BACKUP: /home/BACKUPS
 
+# Last backups to keep
+Keep last:
+    Months: 120
+    Weeks: 4
+    Days: 7
+
 # Compression command from stdin
 Compression:
     Command: bzip2 -c >
