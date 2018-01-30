@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 '''
-Backup 1 copy per month, keep last 4 weeks and last 7 days.
+Easy remote database backup system
 '''
 
 import datetime
@@ -168,7 +168,7 @@ def main():
                         LOGGER.info('Command: %s', command)
                         run(command.replace('****', db_conf['password']))
 
-                # Keep last seven daily backups
+                # Remove old daily backups
                 for i in range(config['Keep last']['Days'], config['Keep last']['Days'] + 366):
                     file_name = ('02_Day_{date}.sql{extension}'
                                  .format(date=(today - relativedelta(days=i)).isoformat(),
@@ -177,8 +177,6 @@ def main():
                     if os.path.exists(output_path):
                         LOGGER.info('Removing old daily backup %s !', output_path)
                         os.unlink(output_path)
-                    else:
-                        LOGGER.debug('No file %s to remove !', output_path)
 
 
 if __name__ == '__main__':

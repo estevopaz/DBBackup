@@ -1,6 +1,6 @@
 # DBBackup
 
-Easy remote database backup system
+Easy remote (or local) database backup system
 
 It makes backups:
 - Monthly
