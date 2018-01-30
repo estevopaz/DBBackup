@@ -46,12 +46,9 @@ def main():
 
         if dbms in config:
 
-            path = os.path.join(config['BACKUP'], dbms)
-            os.makedirs(path, exist_ok=True)
-
             for database in config[dbms]['Databases']:
 
-                path = os.path.join(path, database['host'], database['database'])
+                path = os.path.join(config['BACKUP'], dbms, database['host'], database['database'])
                 os.makedirs(path, exist_ok=True)
 
                 ignore = list()
