@@ -20,6 +20,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 CONFIG_FILE = '/etc/dbbackup/config.yml'
+FILE_NAME = {
+    'Monthly': '00_Month_{year}_{month}.sql{extension}',
+    'Weekly': '01_Week_{year}_{week:02}.sql{extension}',
+    'Daily': '02_Day_{date}.sql{extension}'
+}
 
 
 def dump_command(conf, dbms, db_conf):
@@ -75,7 +80,7 @@ def main():
 
                 # Monthly backup
                 monthly = False
-                file_name = ('00_Month_{year}_{month}.sql{extension}'
+                file_name = (FILE_NAME['Monthly']
                              .format(year=today.strftime('%Y'),
                                      month=today.strftime('%m'),
                                      extension=config['Compression']['Extension']))
@@ -97,7 +102,7 @@ def main():
                 # Remove old monthly backups
                 for i in range(config['Keep last']['Months'], config['Keep last']['Months'] + 12):
                     date_to_check = today - relativedelta(months=i)
-                    file_name = ('00_Month_{year}_{month}.sql{extension}'
+                    file_name = (FILE_NAME['Monthly']
                                  .format(year=date_to_check.strftime('%Y'),
                                          month=date_to_check.strftime('%m'),
                                          extension=config['Compression']['Extension']))
@@ -108,7 +113,7 @@ def main():
 
                 # Weekly backup
                 weekly = False
-                file_name = ('01_Week_{year}_{week:02}.sql{extension}'
+                file_name = (FILE_NAME['Weekly']
                              .format(year=today.strftime('%Y'),
                                      week=today.isocalendar()[1],
                                      extension=config['Compression']['Extension']))
@@ -135,7 +140,7 @@ def main():
                 # Remove old weekly backups
                 for i in range(config['Keep last']['Weeks'], config['Keep last']['Weeks'] + 52):
                     date_to_check = today - relativedelta(weeks=i)
-                    file_name = ('01_Week_{year}_{week:02}.sql{extension}'
+                    file_name = (FILE_NAME['Weekly']
                                  .format(year=date_to_check.strftime('%Y'),
                                          week=date_to_check.isocalendar()[1],
                                          extension=config['Compression']['Extension']))
@@ -145,7 +150,7 @@ def main():
                         os.unlink(output_path)
 
                 # Daily backup
-                file_name = ('02_Day_{date}.sql{extension}'
+                file_name = (FILE_NAME['Daily']
                              .format(date=today.isoformat(),
                                      extension=config['Compression']['Extension']))
                 daily_path = os.path.join(path, file_name)
@@ -170,7 +175,7 @@ def main():
 
                 # Remove old daily backups
                 for i in range(config['Keep last']['Days'], config['Keep last']['Days'] + 366):
-                    file_name = ('02_Day_{date}.sql{extension}'
+                    file_name = (FILE_NAME['Daily']
                                  .format(date=(today - relativedelta(days=i)).isoformat(),
                                          extension=config['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
