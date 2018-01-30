@@ -2,16 +2,22 @@
 
 Easy remote database backup system
 
-It makes the follow backups:
-- Monthly, it keeps forever.
-- Weekly, it keeps only last 4 weeks.
-- Daily, it keeps only last 7 days.
+It makes backups:
+- Monthly
+- Weekly
+- Daily
+
+Backups to keep can be modified into configuration file.
+By default:
+- 120 months
+- 4 weeks
+- 7 days
 
 ### Installation
 
 - Clone project:
 
-      git clone git@github.com:estevopaz/DBBackup.git
+      git clone https://github.com/estevopaz/DBBackup.git
 
 - System installation (as __root__):
 
