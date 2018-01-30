@@ -27,9 +27,10 @@ def dump_command(conf, dbms, db_conf):
     Get dump command.
     '''
     ignore = list()
-    for exclude in db_conf['exclude']:
-        ignore.append(conf[dbms]['Command ignore']
-                      .format(database=db_conf['database'], table=exclude))
+    if 'exclude' in db_conf:
+        for exclude in db_conf['exclude']:
+            ignore.append(conf[dbms]['Command ignore']
+                          .format(database=db_conf['database'], table=exclude))
     return conf[dbms]['Command'].format(host=db_conf['host'],
                                         user=db_conf['user'],
                                         password='****',
