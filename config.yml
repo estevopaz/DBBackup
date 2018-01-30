@@ -1,0 +1,31 @@
+#
+# General settings
+#
+
+# Backup folder
+BACKUP: /home/BACKUPS
+
+# Compression command from stdin
+Compression:
+    Command: bzip2 -c >
+    Extension: .bz2
+
+#
+# MySQL
+#
+MySQL:
+    Command: mysqldump --compact --compress --host={host} --user={user} --password={password} {database} {ignore}
+    Command ignore: --ignore-table={database}.{table}
+    Databases:
+        - database: Database name
+          host: IP or host name
+          user: Database user
+          password: User password
+          exclude: ['Table to exclude', ...]
+        - ...
+
+#
+# PostgreSQL
+#
+# TODO
+#

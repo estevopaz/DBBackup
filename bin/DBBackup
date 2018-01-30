@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+
+'''
+Backup 1 copy per month, keep last 4 weeks and last 7 days.
+'''
+
+import datetime
+import logging
+import os
+import subprocess
+import sys
+import yaml
+
+
+logging.basicConfig(format='DBBackup : %(asctime)s : %(levelname)s : %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
+
+
+CONFIG_FILE = '/etc/dbbackup/config.yml'
+
+
+def run(command):
+    '''
+    Command launch.
+    '''
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout = process.stdout.read()
+    stderr = process.stderr.read()
+    if stdout:
+        LOGGER.info(stdout.decode('UTF-8'))
+    if stderr:
+        LOGGER.error(stderr.decode('UTF-8'))
+        raise RuntimeError(stderr)
+
+
+def main():
+    '''
+    Backup manager.
+    '''
+    with open(CONFIG_FILE) as file_open:
+        config = yaml.load(file_open)
+
+    for dbms in ('MySQL', 'PostgreSQL'):
+
+        if dbms in config:
+
+            path = os.path.join(config['BACKUP'], dbms)
+            os.makedirs(path, exist_ok=True)
+
+            for database in config[dbms]['Databases']:
+
+                path = os.path.join(path, database['database'])
+                os.makedirs(path, exist_ok=True)
+
+                ignore = list()
+                for exclude in database['exclude']:
+                    ignore.append(config[dbms]['Command ignore']
+                                  .format(database=database['database'], table=exclude))
+                dump = config[dbms]['Command'].format(host=database['host'],
+                                                      user=database['user'],
+                                                      password='****',
+                                                      database=database['database'],
+                                                      ignore=' '.join(ignore))
+
+                today = datetime.date.today()
+
+                # Monthly backup
+                file_name = ('00_Month_{year}_{month}.sql{extension}'
+                             .format(year=today.strftime('%Y'),
+                                     month=today.strftime('%m'),
+                                     extension=config['Compression']['Extension']))
+                output_path = os.path.join(path, file_name)
+                if not os.path.exists(output_path):
+
+                    # Create monthly backup
+                    LOGGER.info('Creating monthly backup ...')
+
+                    command = ('{dump} | {compression} {output_path}'
+                               .format(dump=dump,
+                                       compression=config['Compression']['Command'],
+                                       output_path=output_path))
+                    LOGGER.info('Command: %s', command)
+                    run(command.replace('****', database['password']))
+
+                # Weekly backup
+                file_name = ('01_Week_{year}_{week:02}.sql{extension}'
+                             .format(year=today.strftime('%Y'),
+                                     week=today.isocalendar()[1],
+                                     extension=config['Compression']['Extension']))
+                output_path = os.path.join(path, file_name)
+                if not os.path.exists(output_path):
+
+                    # Create weekly backup
+                    LOGGER.info('Creating weekly backup ...')
+
+                    command = ('{dump} | {compression} {output_path}'
+                               .format(dump=dump,
+                                       compression=config['Compression']['Command'],
+                                       output_path=output_path))
+                    LOGGER.info('Command: %s', command)
+                    run(command.replace('****', database['password']))
+
+                # Keep last four weekly backups
+                for i in range(4, 53):
+                    date_to_check = today - datetime.timedelta(weeks=i)
+                    file_name = ('01_Week_{year}_{week:02}.sql{extension}'
+                                 .format(year=date_to_check.strftime('%Y'),
+                                         week=date_to_check.isocalendar()[1],
+                                         extension=config['Compression']['Extension']))
+                    output_path = os.path.join(path, file_name)
+                    if os.path.exists(output_path):
+                        LOGGER.info('Removing old weekly backup %s !', output_path)
+                        os.unlink(output_path)
+                    else:
+                        LOGGER.debug('No file %s to remove !', output_path)
+
+                # Daily backup
+                file_name = ('02_Day_{date}.sql{extension}'
+                             .format(date=today.isoformat(),
+                                     extension=config['Compression']['Extension']))
+                output_path = os.path.join(path, file_name)
+                if os.path.exists(output_path):
+
+                    LOGGER.warning("Today's backup already exists, hour added !")
+                    hour = datetime.datetime.now().strftime('%H:%M')
+                    output_path = output_path.replace('.sql', '_{hour}.sql'.format(hour=hour))
+
+                # Create daily backup
+                LOGGER.info('Creating daily backup ...')
+
+                command = ('{dump} | {compression} {output_path}'
+                           .format(dump=dump,
+                                   compression=config['Compression']['Command'],
+                                   output_path=output_path))
+                LOGGER.info('Command: %s', command)
+                run(command.replace('****', database['password']))
+
+                # Keep last seven daily backups
+                for i in range(4, 366):
+                    file_name = ('02_Day_{date}.sql{extension}'
+                                 .format(date=(today - datetime.timedelta(days=i)).isoformat(),
+                                         extension=config['Compression']['Extension']))
+                    output_path = os.path.join(path, file_name)
+                    if os.path.exists(output_path):
+                        LOGGER.info('Removing old daily backup %s !', output_path)
+                        os.unlink(output_path)
+                    else:
+                        LOGGER.debug('No file %s to remove !', output_path)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except RuntimeError:
+        sys.exit('Command error !!!')
+    sys.exit(0)
