@@ -47,7 +47,7 @@ but ideally must be configured into __cron__ for daily execution.
 Keep in mind that must be executed by __root__.
 
     crontab -e
-    0 23 * * *  DBBackup
+    0 23 * * *  /usr/local/bin/DBBackup
 
 ## Notes
 
