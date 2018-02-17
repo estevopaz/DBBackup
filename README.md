@@ -1,6 +1,7 @@
 # DBBackup
 
-Easy remote (or local) database backup system
+Easy remote (or local) database backup system for PostgreSQL and MySQL
+(easily extensible to any other).
 
 It makes backups:
 - Monthly

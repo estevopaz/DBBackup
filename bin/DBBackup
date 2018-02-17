@@ -155,7 +155,8 @@ def main():
                                      extension=config['Compression']['Extension']))
                 daily_path = os.path.join(path, file_name)
                 if os.path.exists(daily_path):
-                    LOGGER.warning("Today's backup already exists, daily backup aborted !")
+                    LOGGER.warning('Today\'s backup for "%s" already exists,'
+                                   ' daily backup aborted !', db_conf['database'])
                 else:
 
                     # Create daily backup

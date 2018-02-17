@@ -33,5 +33,13 @@ MySQL:
 #
 # PostgreSQL
 #
-# TODO
-#
+PostgreSQL:
+    Command: pg_dump --dbname=postgresql://{user}:{password}@{host}:5432/{database}
+    Command ignore: --exclude-table={table}
+    Databases:
+        - database: Database name
+          host: IP or host name
+          user: Database user
+          password: User password
+          exclude: ['Table to exclude', ...]
+        - ...
