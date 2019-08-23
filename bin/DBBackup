@@ -6,41 +6,78 @@ Easy remote database backup system
 
 import datetime
 import logging
+import logging.config
 import os
 import subprocess
 import sys
+import time
 import yaml
 from dateutil.relativedelta import relativedelta
 
 
-logging.basicConfig(format='DBBackup : %(asctime)s : %(levelname)s : %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S',
-                    level=logging.INFO)
-LOGGER = logging.getLogger(__name__)
-
-
 CONFIG_FILE = '/etc/dbbackup/config.yml'
+LOG_CONFIG_FILE = '/etc/dbbackup/logging.yml'
+CACHE = {
+    'Logger': None
+}
+
 FILE_NAME = {
     'Monthly': '00_Month_{year}_{month}.sql{extension}',
     'Weekly': '01_Week_{year}_{week:02}.sql{extension}',
     'Daily': '02_Day_{date}.sql{extension}'
 }
 
+with open(CONFIG_FILE) as file_open:
+    CONFIG = yaml.load(file_open)
 
-def dump_command(conf, dbms, db_conf):
+
+class UTCFormatter(logging.Formatter):
+    '''
+    Log formatter in UTC
+    '''
+    converter = time.gmtime
+
+
+def set_logger():
+    '''
+    Configure the logging and create a logger for the current module.
+    '''
+
+    # Get logging configuration
+    _file = open(LOG_CONFIG_FILE)
+    log_dict = yaml.load(_file)
+    _file.close()
+
+    # Set log times to UTC
+    log_dict['formatters']['simple']['()'] = UTCFormatter
+
+    # Filling e-Mail configuration
+    log_dict['handlers']['email']['level'] = CONFIG['Email']['Level'].upper()
+    log_dict['handlers']['email']['mailhost'] = CONFIG['Email']['Server']
+    log_dict['handlers']['email']['fromaddr'] = CONFIG['Email']['From']
+    log_dict['handlers']['email']['toaddrs'] = CONFIG['Email']['To']
+    log_dict['handlers']['email']['credentials'] = (CONFIG['Email']['Login'],
+                                                    CONFIG['Email']['Password'])
+    log_dict['handlers']['email']['secure'] = ()
+
+    logging.config.dictConfig(log_dict)
+    CACHE['Logger'] = logging.getLogger('DBBackup')
+
+
+def dump_command(dbms, db_conf):
     '''
     Get dump command.
     '''
     ignore = list()
     if 'exclude' in db_conf:
         for exclude in db_conf['exclude']:
-            ignore.append(conf[dbms]['Command ignore']
+            ignore.append(CONFIG[dbms]['Command ignore']
                           .format(database=db_conf['database'], table=exclude))
-    return conf[dbms]['Command'].format(host=db_conf['host'],
-                                        user=db_conf['user'],
-                                        password='****',
-                                        database=db_conf['database'],
-                                        ignore=' '.join(ignore))
+    return CONFIG[dbms]['Command'].format(host=db_conf['host'],
+                                          user=db_conf['user'],
+                                          password='****',
+                                          database=db_conf['database'],
+                                          ignore=' '.join(ignore))
 
 
 def run(command):
@@ -51,9 +88,9 @@ def run(command):
     stdout = process.stdout.read()
     stderr = process.stderr.read()
     if stdout:
-        LOGGER.info(stdout.decode('UTF-8'))
+        CACHE['Logger'].info(stdout.decode('UTF-8'))
     if stderr:
-        LOGGER.error(stderr.decode('UTF-8'))
+        CACHE['Logger'].error(stderr.decode('UTF-8'))
         raise RuntimeError(stderr)
 
 
@@ -61,54 +98,51 @@ def main():
     '''
     Backup manager.
     '''
-    with open(CONFIG_FILE) as file_open:
-        config = yaml.load(file_open)
-
     today = datetime.date.today()
     for dbms in ('MySQL', 'PostgreSQL'):
 
-        if dbms in config:
+        if dbms in CONFIG:
 
-            for db_conf in config[dbms]['Databases']:
+            for db_conf in CONFIG[dbms]['Databases']:
 
                 # Destinity folder
-                path = os.path.join(config['BACKUP'], dbms, db_conf['host'], db_conf['database'])
+                path = os.path.join(CONFIG['BACKUP'], dbms, db_conf['host'], db_conf['database'])
                 os.makedirs(path, exist_ok=True)
 
                 # Dump command
-                dump = dump_command(config, dbms, db_conf)
+                dump = dump_command(dbms, db_conf)
 
                 # Monthly backup
                 monthly = False
                 file_name = (FILE_NAME['Monthly']
                              .format(year=today.strftime('%Y'),
                                      month=today.strftime('%m'),
-                                     extension=config['Compression']['Extension']))
+                                     extension=CONFIG['Compression']['Extension']))
                 monthly_path = os.path.join(path, file_name)
                 if not os.path.exists(monthly_path):
 
                     monthly = True
 
                     # Create monthly backup
-                    LOGGER.info('Creating monthly backup ...')
+                    CACHE['Logger'].info('Creating monthly backup ...')
 
                     command = ('{dump} | {compression} {output_path}'
                                .format(dump=dump,
-                                       compression=config['Compression']['Command'],
+                                       compression=CONFIG['Compression']['Command'],
                                        output_path=monthly_path))
-                    LOGGER.info('Command: %s', command)
+                    CACHE['Logger'].info('Command: %s', command)
                     run(command.replace('****', db_conf['password']))
 
                 # Remove old monthly backups
-                for i in range(config['Keep last']['Months'], config['Keep last']['Months'] + 12):
+                for i in range(CONFIG['Keep last']['Months'], CONFIG['Keep last']['Months'] + 12):
                     date_to_check = today - relativedelta(months=i)
                     file_name = (FILE_NAME['Monthly']
                                  .format(year=date_to_check.strftime('%Y'),
                                          month=date_to_check.strftime('%m'),
-                                         extension=config['Compression']['Extension']))
+                                         extension=CONFIG['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
                     if os.path.exists(output_path):
-                        LOGGER.info('Removing old monthly backup %s !', output_path)
+                        CACHE['Logger'].info('Removing old monthly backup %s !', output_path)
                         os.unlink(output_path)
 
                 # Weekly backup
@@ -116,77 +150,79 @@ def main():
                 file_name = (FILE_NAME['Weekly']
                              .format(year=today.strftime('%Y'),
                                      week=today.isocalendar()[1],
-                                     extension=config['Compression']['Extension']))
+                                     extension=CONFIG['Compression']['Extension']))
                 weekly_path = os.path.join(path, file_name)
                 if not os.path.exists(weekly_path):
 
                     weekly = True
 
                     # Create weekly backup
-                    LOGGER.info('Creating weekly backup ...')
+                    CACHE['Logger'].info('Creating weekly backup ...')
 
                     # If monthly or weekly backup, use it instead of create a new one
                     if monthly:
                         os.link(monthly_path, weekly_path)
-                        LOGGER.info('Monthly dump reused for weekly backup %s', weekly_path)
+                        CACHE['Logger'].info('Monthly dump reused for weekly backup %s',
+                                             weekly_path)
                     else:
                         command = ('{dump} | {compression} {output_path}'
                                    .format(dump=dump,
-                                           compression=config['Compression']['Command'],
+                                           compression=CONFIG['Compression']['Command'],
                                            output_path=weekly_path))
-                        LOGGER.info('Command: %s', command)
+                        CACHE['Logger'].info('Command: %s', command)
                         run(command.replace('****', db_conf['password']))
 
                 # Remove old weekly backups
-                for i in range(config['Keep last']['Weeks'], config['Keep last']['Weeks'] + 52):
+                for i in range(CONFIG['Keep last']['Weeks'], CONFIG['Keep last']['Weeks'] + 52):
                     date_to_check = today - relativedelta(weeks=i)
                     file_name = (FILE_NAME['Weekly']
                                  .format(year=date_to_check.strftime('%Y'),
                                          week=date_to_check.isocalendar()[1],
-                                         extension=config['Compression']['Extension']))
+                                         extension=CONFIG['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
                     if os.path.exists(output_path):
-                        LOGGER.info('Removing old weekly backup %s !', output_path)
+                        CACHE['Logger'].info('Removing old weekly backup %s !', output_path)
                         os.unlink(output_path)
 
                 # Daily backup
                 file_name = (FILE_NAME['Daily']
                              .format(date=today.isoformat(),
-                                     extension=config['Compression']['Extension']))
+                                     extension=CONFIG['Compression']['Extension']))
                 daily_path = os.path.join(path, file_name)
                 if os.path.exists(daily_path):
-                    LOGGER.warning('Today\'s backup for "%s" already exists,'
-                                   ' daily backup aborted !', db_conf['database'])
+                    CACHE['Logger'].warning('Today\'s backup for "%s" already exists,'
+                                            ' daily backup aborted !', db_conf['database'])
                 else:
 
                     # Create daily backup
-                    LOGGER.info('Creating daily backup ...')
+                    CACHE['Logger'].info('Creating daily backup ...')
 
                     # If monthly or weekly backup, reuse it instead of create a new one
                     if weekly:
                         os.link(weekly_path, daily_path)
-                        LOGGER.info('Weekly dump reused for daily backup %s', daily_path)
+                        CACHE['Logger'].info('Weekly dump reused for daily backup %s', daily_path)
                     else:
                         command = ('{dump} | {compression} {output_path}'
                                    .format(dump=dump,
-                                           compression=config['Compression']['Command'],
+                                           compression=CONFIG['Compression']['Command'],
                                            output_path=daily_path))
-                        LOGGER.info('Command: %s', command)
+                        CACHE['Logger'].info('Command: %s', command)
                         run(command.replace('****', db_conf['password']))
 
                 # Remove old daily backups
-                for i in range(config['Keep last']['Days'], config['Keep last']['Days'] + 366):
+                for i in range(CONFIG['Keep last']['Days'], CONFIG['Keep last']['Days'] + 366):
                     file_name = (FILE_NAME['Daily']
                                  .format(date=(today - relativedelta(days=i)).isoformat(),
-                                         extension=config['Compression']['Extension']))
+                                         extension=CONFIG['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
                     if os.path.exists(output_path):
-                        LOGGER.info('Removing old daily backup %s !', output_path)
+                        CACHE['Logger'].info('Removing old daily backup %s !', output_path)
                         os.unlink(output_path)
 
 
 if __name__ == '__main__':
     try:
+        set_logger()
         main()
     except RuntimeError:
         sys.exit('Command error !!!')

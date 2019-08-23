@@ -5,6 +5,15 @@
 # Backup folder
 BACKUP: /home/BACKUPS
 
+# Error notifications
+Email:
+    From: user@domain.com
+    To: user@domain.com
+    Level: error  # ERROR or INFO
+    Server: mail.domain.com  # SSL support mandatory
+    Login: user
+    Password: password
+
 # Last backups to keep
 Keep last:
     Months: 120

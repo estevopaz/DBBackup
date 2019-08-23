@@ -9,7 +9,7 @@ from setuptools import setup
 
 setup(
     name='Hoot Interactive - DBBackup',
-    version='0.1',
+    version='1.2',
     author='Estevo Paz',
     author_email='estevo@hootinteractive.net',
     description='Easy remote database backup system',

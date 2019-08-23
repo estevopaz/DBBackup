@@ -1,0 +1,36 @@
+version: 1
+disable_existing_loggers: False
+
+formatters:
+    simple:
+        format: '%(asctime)s.%(msecs)03d : %(levelname)s : %(name)s : %(message)s'
+        datefmt: '%Y-%m-%d %H:%M:%S'
+
+root:
+    level: INFO
+    handlers: [console, file, email]
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: INFO
+        formatter: simple
+        stream: ext://sys.stderr
+    file:
+        class: logging.handlers.RotatingFileHandler
+        level: INFO
+        formatter: simple
+        filename: /var/log/dbbackup.log
+        maxBytes: 5120000
+        backupCount: 5
+        encoding: utf8
+    email:
+        class: logging.handlers.SMTPHandler
+        level: __RUNTIME_VALUE__
+        formatter: simple
+        mailhost: __RUNTIME_VALUE__
+        fromaddr: __RUNTIME_VALUE__
+        toaddrs: __RUNTIME_VALUE__
+        subject: '[DBBackup] Log info ...'
+        credentials: __RUNTIME_VALUE__
+        timeout: 120
