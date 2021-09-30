@@ -28,7 +28,7 @@ FILE_NAME = {
 }
 
 with open(CONFIG_FILE) as file_open:
-    CONFIG = yaml.load(file_open)
+    CONFIG = yaml.load(file_open, Loader=yaml.FullLoader)
 
 
 class UTCFormatter(logging.Formatter):
@@ -44,9 +44,8 @@ def set_logger():
     '''
 
     # Get logging configuration
-    _file = open(LOG_CONFIG_FILE)
-    log_dict = yaml.load(_file)
-    _file.close()
+    with open(LOG_CONFIG_FILE) as file_open:
+        log_dict = yaml.load(file_open, Loader=yaml.FullLoader)
 
     # Set log times to UTC
     log_dict['formatters']['simple']['()'] = UTCFormatter
@@ -73,11 +72,10 @@ def dump_command(dbms, db_conf):
         for exclude in db_conf['exclude']:
             ignore.append(CONFIG[dbms]['Command ignore']
                           .format(database=db_conf['database'], table=exclude))
-    return CONFIG[dbms]['Command'].format(host=db_conf['host'],
-                                          user=db_conf['user'],
-                                          password='****',
-                                          database=db_conf['database'],
-                                          ignore=' '.join(ignore))
+    conf = db_conf.copy()
+    conf['password'] = '****'
+    conf['ignore'] = ' '.join(ignore)
+    return CONFIG[dbms]['Command'].format(**conf)
 
 
 def run(command):
@@ -142,7 +140,7 @@ def main():
                                          extension=CONFIG['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
                     if os.path.exists(output_path):
-                        CACHE['Logger'].info('Removing old monthly backup %s !', output_path)
+                        CACHE['Logger'].info('Removing old monthly backup %s!', output_path)
                         os.unlink(output_path)
 
                 # Weekly backup
@@ -170,7 +168,9 @@ def main():
                                            compression=CONFIG['Compression']['Command'],
                                            output_path=weekly_path))
                         CACHE['Logger'].info('Command: %s', command)
-                        run(command.replace('****', db_conf['password']))
+                        if 'password' in db_conf:
+                            command = command.replace('****', db_conf['password'])
+                        run(command)
 
                 # Remove old weekly backups
                 for i in range(CONFIG['Keep last']['Weeks'], CONFIG['Keep last']['Weeks'] + 52):
@@ -181,7 +181,7 @@ def main():
                                          extension=CONFIG['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
                     if os.path.exists(output_path):
-                        CACHE['Logger'].info('Removing old weekly backup %s !', output_path)
+                        CACHE['Logger'].info('Removing old weekly backup %s!', output_path)
                         os.unlink(output_path)
 
                 # Daily backup
@@ -191,7 +191,7 @@ def main():
                 daily_path = os.path.join(path, file_name)
                 if os.path.exists(daily_path):
                     CACHE['Logger'].warning('Today\'s backup for "%s" already exists,'
-                                            ' daily backup aborted !', db_conf['database'])
+                                            ' daily backup aborted!', db_conf['database'])
                 else:
 
                     # Create daily backup
@@ -207,7 +207,9 @@ def main():
                                            compression=CONFIG['Compression']['Command'],
                                            output_path=daily_path))
                         CACHE['Logger'].info('Command: %s', command)
-                        run(command.replace('****', db_conf['password']))
+                        if 'password' in db_conf:
+                            command = command.replace('****', db_conf['password'])
+                        run(command)
 
                 # Remove old daily backups
                 for i in range(CONFIG['Keep last']['Days'], CONFIG['Keep last']['Days'] + 366):
@@ -216,7 +218,7 @@ def main():
                                          extension=CONFIG['Compression']['Extension']))
                     output_path = os.path.join(path, file_name)
                     if os.path.exists(output_path):
-                        CACHE['Logger'].info('Removing old daily backup %s !', output_path)
+                        CACHE['Logger'].info('Removing old daily backup %s!', output_path)
                         os.unlink(output_path)
 
 
@@ -225,5 +227,5 @@ if __name__ == '__main__':
         set_logger()
         main()
     except RuntimeError:
-        sys.exit('Command error !!!')
+        sys.exit('Command error!!!')
     sys.exit(0)
