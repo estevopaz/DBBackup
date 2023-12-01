@@ -129,7 +129,9 @@ def main():
                                        compression=CONFIG['Compression']['Command'],
                                        output_path=monthly_path))
                     CACHE['Logger'].info('Command: %s', command)
-                    run(command.replace('****', db_conf['password']))
+                    if 'password' in db_conf:
+                        command = command.replace('****', db_conf['password'])
+                    run(command)
 
                 # Remove old monthly backups
                 for i in range(CONFIG['Keep last']['Months'], CONFIG['Keep last']['Months'] + 12):
@@ -227,5 +229,8 @@ if __name__ == '__main__':
         set_logger()
         main()
     except RuntimeError:
+        CACHE['Logger'].error('Backup command error!')
         sys.exit('Command error!!!')
+    except Exception:
+        CACHE['Logger'].error('Unexpected backup error!')
     sys.exit(0)
